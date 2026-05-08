@@ -14,7 +14,7 @@ GameObject:
   - component: {fileID: 152797282462430423}
   - component: {fileID: 8360758885135735412}
   m_Layer: 0
-  m_Name: Mole
+  m_Name: Cible
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0

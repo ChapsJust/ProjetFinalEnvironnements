@@ -4,9 +4,6 @@ public class GameManager : MonoBehaviour
 {
     public static GameManager instance;
 
-    [SerializeField, Tooltip("Le jeu de Whack-A-Mole à gérer")]
-    private WhackAMole whackAMole;
-
     [SerializeField, Tooltip("L'interface utilisateur pour afficher le score")]
     private GameObject interfaceJeu;
 
@@ -16,19 +13,21 @@ public class GameManager : MonoBehaviour
     void Awake()
     {
         instance = this;
-        whackAMole.SetOnTerminerPartie(OnTerminerPartie);
     }
 
     public void DemarrerJeu()
     {
         menu.SetActive(false);
         interfaceJeu.SetActive(true);
-        whackAMole.DemarrerPartie();
     }
 
     private void OnTerminerPartie()
     {
         menu.SetActive(true);
         interfaceJeu.SetActive(false);
+    }
+
+    public void OnFrapperCible(Cible cible)
+    {
     }
 }
