@@ -1,8 +1,14 @@
+using System.Collections.Generic;
 using UnityEngine;
+
 
 public class GameManager : MonoBehaviour
 {
     public static GameManager instance;
+
+    public GameManager Instance {
+        get => instance;
+    }
 
     [SerializeField, Tooltip("L'interface utilisateur pour afficher le score")]
     private GameObject interfaceJeu;
@@ -10,8 +16,22 @@ public class GameManager : MonoBehaviour
     [SerializeField, Tooltip("L'interface utilisateur pour afficher le menu du jeu")]
     private GameObject menu;
 
-    void Awake()
+    [System.Serializable]
+    private class CombinaisonDeCibles
     {
+        public List<Cible> cibles;
+    }
+
+    [SerializeField, Tooltip("Liste des combinaisons possibles de cibles")]
+    private List<CombinaisonDeCibles> listesDeCombinaisons;
+
+    private void Awake()
+    {
+        if (instance != null && instance != this)
+        {
+            Debug.LogError("Construction dupliqué du singleton GameManager");
+        }
+
         instance = this;
     }
 
