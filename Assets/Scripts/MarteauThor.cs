@@ -186,7 +186,8 @@ public class MarteauThor : MonoBehaviour
 
     private void OnGrabEntered(SelectEnterEventArgs args)
     {
-        // Remet la physique à la normale (kinematic était activé pendant le retour)
+        // Pas besoin de StopperPhysiqueRetour ici si on vient d'AttenteRattrapage,
+        // mais on l'appelle quand même au cas où le grab arrive dans un autre état
         StopperPhysiqueRetour();
 
         etat = EtatMarteau.EnMain;
@@ -194,7 +195,6 @@ public class MarteauThor : MonoBehaviour
         rappelRequis = false;
 
         SetTrail(false);
-        // Le grab est déjà activé ici (réactivé dans ArriverDansMain)
 
         EnvoyerHaptique(args.interactorObject, amplitudeGrab, dureeGrab);
         JouerSon(sonLancer);
@@ -246,13 +246,12 @@ public class MarteauThor : MonoBehaviour
         etat = EtatMarteau.Retour;
         vitesseRetourCourante = 0f;
 
-        // FIX [3] : kinematic = on contrôle la position nous-mêmes → impossible de bypass
         rb.isKinematic = true;
         rb.linearVelocity = Vector3.zero;
         rb.angularVelocity = Vector3.zero;
 
-        SetColliders(false);    // Mjolnir traverse tout au retour
-        SetGrabActif(false);    // FIX [2] : grab désactivé → plus de lag
+        SetColliders(false);
+        SetGrabActif(false);
 
         JouerSon(sonRetour);
     }
@@ -311,14 +310,15 @@ public class MarteauThor : MonoBehaviour
         etat = EtatMarteau.AttenteRattrapage;
         tempsAttenteRattrapage = 0f;
 
-        rb.isKinematic = true;
+        // ⚡ FIX : sortir de kinematic AVANT de réactiver le grab
+        // XRI a besoin d'un rigidbody dynamique pour initialiser son velocity tracker
+        rb.isKinematic = false;
+        rb.useGravity = false;              // pas de gravité pendant l'attente, mais physique active
         rb.linearVelocity = Vector3.zero;
         rb.angularVelocity = Vector3.zero;
 
         SetTrail(false);
         SetColliders(true);
-
-        // FIX [2] : grab réactivé ICI seulement → le joueur peut maintenant saisir
         SetGrabActif(true);
 
         EnvoyerHaptique(derniereMain, amplitudeRetour, dureeRetour);
@@ -329,17 +329,28 @@ public class MarteauThor : MonoBehaviour
     {
         tempsAttenteRattrapage += Time.deltaTime;
 
+        // ⚡ FIX : si déjà grabbé, on arrête tout — XRI gère le transform maintenant
+        if (grabInteractable.isSelected)
+            return;
+
+        // Floating près de la main SEULEMENT si pas encore grabbé
         if (derniereMain?.transform != null)
         {
-            transform.position = Vector3.Lerp(
+            // Utiliser MovePosition au lieu de transform.position direct pour ne pas
+            // perturber le tracking de XRI si on passe en select pendant le Lerp
+            Vector3 nouvelle = Vector3.Lerp(
                 transform.position,
                 derniereMain.transform.position,
                 Time.deltaTime * 25f
             );
+            transform.position = nouvelle;
         }
 
         if (tempsAttenteRattrapage >= delaiAvantChute)
+        {
+            rb.useGravity = graviteOriginale;  // gravité revient pour la chute
             AbandonnerRetour();
+        }
     }
 
     private void AbandonnerRetour()
