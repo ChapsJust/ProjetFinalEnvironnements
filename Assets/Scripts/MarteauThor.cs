@@ -4,444 +4,599 @@ using UnityEngine.InputSystem;
 using UnityEngine.XR.Interaction.Toolkit;
 using UnityEngine.XR.Interaction.Toolkit.Interactables;
 using UnityEngine.XR.Interaction.Toolkit.Interactors;
+using ThorVR.Combat;
 
 /// <summary>
-/// Mjolnir-style hammer — XR Interaction Toolkit 3.x
+/// Mjolnir-style hammer pour XR Interaction Toolkit 3.x
 ///
-/// FIXES v3:
-///   [1] Trail plus long (time + width augmentés, configurable inspector)
-///   [2] Grab désactivé pendant Retour → plus de lag grab+recall simultané
-///       Grab réactivé uniquement quand le marteau flotte près de la main (AttenteRattrapage)
-///   [3] Bypass corrigé : retour kinematic MovePosition frame-by-frame
-///       Le marteau ne peut plus dépasser la main quelle que soit la vitesse
-///   [4] Orientation : alignement commence DÈS le début du retour, pas seulement à 1.5m
-///       Spin Mjolnir s'estompe progressivement en approchant → arrive toujours droit
+/// FONCTIONNALITÉS
+/// ───────────────
+/// • Lancer avec spin et boost de vélocité
+/// • Retour automatique après délai ou rappel manuel (bouton)
+/// • Vol kinematic frame-by-frame (impossible de bypasser la main)
+/// • Orientation progressive du manche vers la main
+/// • Combat : kill instantané ou knockback selon vitesse d'impact
+/// • Tracking de vélocité indépendant de XRI pour des dégâts précis
+/// • Trail visuel auto-généré
+/// • Haptiques, audio, gestion d'urgence si hors limites
+///
+/// SETUP REQUIS
+/// ────────────
+/// • XRGrabInteractable : Movement Type = Velocity Tracking, Throw On Detach = ON,
+///   Smooth Position/Rotation = OFF
+/// • Ennemis : implémenter IDamageable (voir EnemyHammerTarget.cs)
 /// </summary>
 [RequireComponent(typeof(XRGrabInteractable))]
 [RequireComponent(typeof(Rigidbody))]
 public class MarteauThor : MonoBehaviour
 {
-    #region ── Enums ────────────────────────────────────────────────────────────
-    private enum EtatMarteau { EnMain, Lance, Retour, AttenteRattrapage }
+    // ════════════════════════════════════════════════════════════════════════
+    #region States
+    // ════════════════════════════════════════════════════════════════════════
+
+    private enum HammerState
+    {
+        Held,           // Tenu par le joueur
+        Thrown,         // En vol libre après lancer
+        Returning,      // Retour vers la main (kinematic)
+        AwaitingCatch   // Flotte près de la main, prêt à être saisi
+    }
+
     #endregion
 
-    #region ── Inspector ────────────────────────────────────────────────────────
+    // ════════════════════════════════════════════════════════════════════════
+    #region Inspector — Throw
+    // ════════════════════════════════════════════════════════════════════════
 
     [Header("═══ LANCER ═══")]
-    [Tooltip("Multiplicateur appliqué à la vélocité XRI au moment du release")]
-    [SerializeField] private float multiplicateurVitesse = 2f;
+    [Tooltip("Multiplicateur appliqué à la vélocité XRI au release")]
+    [SerializeField] private float throwSpeedMultiplier = 2f;
+
     [Tooltip("Spin visuel autour du manche au lancer (degrés/s)")]
-    [SerializeField] private float spinLancer = 720f;
+    [SerializeField] private float throwSpinSpeed = 720f;
+
+    [Tooltip("Vitesse minimum pour considérer un impact comme 'kill' (m/s)")]
+    [SerializeField] private float minSpeedForKill = 3f;
+
+    #endregion
+
+    // ════════════════════════════════════════════════════════════════════════
+    #region Inspector — Return
+    // ════════════════════════════════════════════════════════════════════════
 
     [Header("═══ RETOUR AUTOMATIQUE ═══")]
-    [Tooltip("Secondes avant retour automatique")]
-    [SerializeField] private float delaiRetourAuto = 3f;
+    [Tooltip("Secondes avant retour automatique (0 = désactivé)")]
+    [SerializeField] private float autoReturnDelay = 3f;
+
     [Tooltip("Distance hors scène déclenchant un reset d'urgence (m)")]
-    [SerializeField] private float distanceSecurite = 50f;
+    [SerializeField] private float emergencyResetDistance = 50f;
 
     [Header("═══ VOL DE RETOUR ═══")]
     [Tooltip("Vitesse de déplacement du marteau pendant le retour (m/s)")]
-    [SerializeField] private float vitesseRetour = 12f;
+    [SerializeField] private float returnSpeed = 12f;
+
     [Tooltip("Douceur du démarrage (0 = instantané, 0.4 = très progressif)")]
-    [SerializeField] private float smoothDemarrageRetour = 0.25f;
-    [Tooltip("Distance à laquelle le marteau passe en mode AttenteRattrapage (m)")]
-    [SerializeField] private float distanceRattrapage = 0.35f;
+    [SerializeField] private float returnStartSmoothing = 0.25f;
+
+    [Tooltip("Distance à laquelle le marteau passe en mode AwaitingCatch (m)")]
+    [SerializeField] private float catchDistance = 0.35f;
 
     [Header("═══ ORIENTATION RETOUR ═══")]
-    [Tooltip("Axe local du manche pointant vers la main. Forward = Z+, Up = Y+")]
-    [SerializeField] private Vector3 axePoigneeLocal = Vector3.forward;
-    [Tooltip("Vitesse d'alignement du manche vers la main (plus grand = plus vif)")]
-    [SerializeField] private float vitesseAlignement = 6f;
-    [Tooltip("Spin Mjolnir en vol de retour (degrés/s), s'estompe en approchant")]
-    [SerializeField] private float vitesseRotationRetour = 540f;
+    [Tooltip("Axe local du manche pointant vers la main (Forward = Z+)")]
+    [SerializeField] private Vector3 handleLocalAxis = Vector3.forward;
+
+    [Tooltip("Vitesse d'alignement du manche vers la main")]
+    [SerializeField] private float alignmentSpeed = 6f;
+
+    [Tooltip("Spin Mjolnir en vol de retour (degrés/s)")]
+    [SerializeField] private float returnSpinSpeed = 540f;
+
     [Tooltip("Distance à laquelle le spin commence à s'estomper (m)")]
-    [SerializeField] private float distanceArretSpin = 2f;
+    [SerializeField] private float spinFadeDistance = 2f;
 
     [Header("═══ ATTENTE DE RATTRAPAGE ═══")]
     [Tooltip("Secondes pendant lesquelles le marteau flotte avant de retomber")]
-    [SerializeField] private float delaiAvantChute = 2.5f;
+    [SerializeField] private float floatingDuration = 2.5f;
+
+    #endregion
+
+    // ════════════════════════════════════════════════════════════════════════
+    #region Inspector — Combat
+    // ════════════════════════════════════════════════════════════════════════
+
+    [Header("═══ COMBAT ═══")]
+    [Tooltip("Dégâts bruts à l'impact (si l'ennemi a un système de HP)")]
+    [SerializeField] private float damage = 100f;
+
+    [Tooltip("Force de knockback de base (multipliée par la vitesse d'impact)")]
+    [SerializeField] private float baseKnockbackForce = 25f;
+
+    [Tooltip("Si true, tue toujours instantanément peu importe la vitesse")]
+    [SerializeField] private bool alwaysInstantKill = false;
+
+    [Tooltip("Layers contenant les ennemis (optimisation - évite les checks inutiles)")]
+    [SerializeField] private LayerMask enemyLayers = ~0;
+
+    [Tooltip("Cooldown anti-double-impact sur le même ennemi (secondes)")]
+    [SerializeField] private float hitCooldown = 0.15f;
+
+    #endregion
+
+    // ════════════════════════════════════════════════════════════════════════
+    #region Inspector — Input & Feedback
+    // ════════════════════════════════════════════════════════════════════════
 
     [Header("═══ RAPPEL MANUEL ═══")]
-    [Tooltip("Action Input (bouton A/X ou autre) pour rappeler le marteau")]
-    [SerializeField] private InputActionReference actionRappel;
+    [SerializeField] private InputActionReference recallAction;
 
     [Header("═══ HAPTIQUES ═══")]
-    [SerializeField] private float amplitudeGrab = 1f;
-    [SerializeField] private float dureeGrab = 0.1f;
-    [SerializeField] private float amplitudeRetour = 0.6f;
-    [SerializeField] private float dureeRetour = 0.15f;
-    [SerializeField] private float amplitudeImpact = 0.8f;
-    [SerializeField] private float dureeImpact = 0.2f;
+    [SerializeField] private float grabHapticAmplitude = 1f;
+    [SerializeField] private float grabHapticDuration = 0.1f;
+    [SerializeField] private float returnHapticAmplitude = 0.6f;
+    [SerializeField] private float returnHapticDuration = 0.15f;
+    [SerializeField] private float impactHapticAmplitude = 0.8f;
+    [SerializeField] private float impactHapticDuration = 0.2f;
 
     [Header("═══ AUDIO ═══")]
     [SerializeField] private AudioSource audioSource;
-    [SerializeField] private AudioClip sonLancer;
-    [SerializeField] private AudioClip sonImpact;
-    [SerializeField] private AudioClip sonRetour;
+    [SerializeField] private AudioClip throwSound;
+    [SerializeField] private AudioClip impactSound;
+    [SerializeField] private AudioClip returnSound;
+    [SerializeField] private AudioClip killSound;
 
     [Header("═══ TRAIL VISUEL ═══")]
-    [Tooltip("Crée un TrailRenderer automatiquement, rien à assigner dans l'inspector")]
-    [SerializeField] private bool activerTrail = true;
-    [SerializeField] private Color couleurTrailDebut = new Color(0.45f, 0.75f, 1f, 1f);
-    [SerializeField] private Color couleurTrailFin = new Color(0.1f, 0.3f, 1f, 0f);
-    [Tooltip("Largeur du trail au départ")]
-    [SerializeField] private float largeurTrail = 0.09f;
-    [Tooltip("Durée de vie des segments en secondes. Plus grand = trail plus long")]
-    [SerializeField] private float dureeTrail = 0.55f;
+    [SerializeField] private bool enableTrail = true;
+    [SerializeField] private Color trailStartColor = new Color(0.45f, 0.75f, 1f, 1f);
+    [SerializeField] private Color trailEndColor = new Color(0.1f, 0.3f, 1f, 0f);
+    [SerializeField] private float trailWidth = 0.09f;
+    [SerializeField] private float trailDuration = 0.55f;
 
     #endregion
 
-    #region ── Private State ────────────────────────────────────────────────────
+    // ════════════════════════════════════════════════════════════════════════
+    #region Private State
+    // ════════════════════════════════════════════════════════════════════════
 
-    private XRGrabInteractable grabInteractable;
+    private XRGrabInteractable grab;
     private Rigidbody rb;
     private Collider[] colliders;
     private TrailRenderer trail;
-    private bool graviteOriginale;
+    private bool originalGravity;
 
-    private EtatMarteau etat = EtatMarteau.EnMain;
-    private IXRSelectInteractor derniereMain;
-    private float tempsDepuisLancer;
-    private float tempsAttenteRattrapage;
-    private float vitesseRetourCourante;   // pour le smooth démarrage
-    private bool rappelRequis;
+    private HammerState state = HammerState.Held;
+    private IXRSelectInteractor lastHand;
+    private float thrownTimer;
+    private float floatingTimer;
+    private float currentReturnSpeed;
+    private bool recallRequested;
+
+    // Combat tracking
+    private Vector3 previousPosition;
+    private Vector3 currentVelocity;
+    private readonly System.Collections.Generic.Dictionary<int, float> recentHits = new();
 
     #endregion
 
-    #region ── Lifecycle ────────────────────────────────────────────────────────
+    // ════════════════════════════════════════════════════════════════════════
+    #region Unity Lifecycle
+    // ════════════════════════════════════════════════════════════════════════
 
     void Awake()
     {
-        grabInteractable = GetComponent<XRGrabInteractable>();
+        grab = GetComponent<XRGrabInteractable>();
         rb = GetComponent<Rigidbody>();
         colliders = GetComponentsInChildren<Collider>();
-        graviteOriginale = rb.useGravity;
+        originalGravity = rb.useGravity;
         rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
 
-        ConstruireTrail();
+        BuildTrail();
     }
 
     void OnEnable()
     {
-        grabInteractable.selectEntered.AddListener(OnGrabEntered);
-        grabInteractable.selectExited.AddListener(OnGrabExited);
+        grab.selectEntered.AddListener(OnGrabbed);
+        grab.selectExited.AddListener(OnReleased);
 
-        if (actionRappel != null)
+        if (recallAction != null)
         {
-            actionRappel.action.Enable();
-            actionRappel.action.performed += OnRappelPerformed;
+            recallAction.action.Enable();
+            recallAction.action.performed += OnRecallInput;
         }
     }
 
     void OnDisable()
     {
-        grabInteractable.selectEntered.RemoveListener(OnGrabEntered);
-        grabInteractable.selectExited.RemoveListener(OnGrabExited);
+        grab.selectEntered.RemoveListener(OnGrabbed);
+        grab.selectExited.RemoveListener(OnReleased);
 
-        if (actionRappel != null)
-            actionRappel.action.performed -= OnRappelPerformed;
+        if (recallAction != null)
+            recallAction.action.performed -= OnRecallInput;
     }
 
     void Update()
     {
-        // ── Rappel manuel ─────────────────────────────────────────────────────
-        if (rappelRequis)
+        // Process recall input
+        if (recallRequested)
         {
-            rappelRequis = false;
-            if (etat == EtatMarteau.Lance) CommencerRetour();
+            recallRequested = false;
+            if (state == HammerState.Thrown) StartReturn();
         }
 
-        // ── Machine d'états ───────────────────────────────────────────────────
-        switch (etat)
+        switch (state)
         {
-            case EtatMarteau.Lance:
-                tempsDepuisLancer += Time.deltaTime;
-
-                if (derniereMain != null &&
-                    Vector3.Distance(transform.position, derniereMain.transform.position) > distanceSecurite)
-                {
-                    Debug.LogWarning("[MarteauThor] Hors limites → reset d'urgence");
-                    ResetUrgence();
-                    return;
-                }
-
-                if (tempsDepuisLancer >= delaiRetourAuto)
-                    CommencerRetour();
+            case HammerState.Thrown:
+                UpdateThrown();
                 break;
 
-            case EtatMarteau.Retour:
-                if (derniereMain?.transform == null) { AbandonnerRetour(); return; }
-                MettreAJourRetour();
+            case HammerState.Returning:
+                UpdateReturning();
                 break;
 
-            case EtatMarteau.AttenteRattrapage:
-                MettreAJourAttenteRattrapage();
+            case HammerState.AwaitingCatch:
+                UpdateAwaitingCatch();
                 break;
         }
+
+        // Track velocity manually for combat (XRI's velocity isn't reliable mid-flight)
+        TrackVelocity();
+        CleanupHitCooldowns();
     }
 
     #endregion
 
-    #region ── Grab Events ──────────────────────────────────────────────────────
+    // ════════════════════════════════════════════════════════════════════════
+    #region Grab Events
+    // ════════════════════════════════════════════════════════════════════════
 
-    private void OnGrabEntered(SelectEnterEventArgs args)
+    private void OnGrabbed(SelectEnterEventArgs args)
     {
-        // Pas besoin de StopperPhysiqueRetour ici si on vient d'AttenteRattrapage,
-        // mais on l'appelle quand même au cas où le grab arrive dans un autre état
-        StopperPhysiqueRetour();
+        StopReturnPhysics();
 
-        etat = EtatMarteau.EnMain;
-        derniereMain = args.interactorObject;
-        rappelRequis = false;
+        state = HammerState.Held;
+        lastHand = args.interactorObject;
+        recallRequested = false;
 
         SetTrail(false);
 
-        EnvoyerHaptique(args.interactorObject, amplitudeGrab, dureeGrab);
-        JouerSon(sonLancer);
+        SendHaptic(args.interactorObject, grabHapticAmplitude, grabHapticDuration);
+        PlaySound(throwSound);
     }
 
-    private void OnGrabExited(SelectExitEventArgs args)
+    private void OnReleased(SelectExitEventArgs args)
     {
-        if (etat != EtatMarteau.EnMain) return;
+        if (state != HammerState.Held) return;
 
-        etat = EtatMarteau.Lance;
-        tempsDepuisLancer = 0f;
-        derniereMain = args.interactorObject;
+        state = HammerState.Thrown;
+        thrownTimer = 0f;
+        lastHand = args.interactorObject;
 
         SetTrail(true);
-        JouerSon(sonLancer);
-        StartCoroutine(BoosterVitesseLancer());
+        PlaySound(throwSound);
+        StartCoroutine(BoostThrowVelocity());
     }
 
-    #endregion
-
-    #region ── Lancer ───────────────────────────────────────────────────────────
-
-    private IEnumerator BoosterVitesseLancer()
+    private IEnumerator BoostThrowVelocity()
     {
-        // Attendre 2 FixedUpdate : XRI 3.x applique la throw velocity en différé
+        // XRI 3.x applies throw velocity in deferred FixedUpdates
         yield return new WaitForFixedUpdate();
         yield return new WaitForFixedUpdate();
 
         rb.isKinematic = false;
-        rb.useGravity = graviteOriginale;
+        rb.useGravity = originalGravity;
         rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
-        rb.linearVelocity *= multiplicateurVitesse;
+        rb.linearVelocity *= throwSpeedMultiplier;
 
-        // Spin visuel autour du manche
-        Vector3 axeMonde = transform.TransformDirection(axePoigneeLocal.normalized);
-        rb.angularVelocity = axeMonde * (spinLancer * Mathf.Deg2Rad);
+        // Spin around handle axis
+        Vector3 worldAxis = transform.TransformDirection(handleLocalAxis.normalized);
+        rb.angularVelocity = worldAxis * (throwSpinSpeed * Mathf.Deg2Rad);
     }
 
     #endregion
 
-    #region ── Retour ───────────────────────────────────────────────────────────
+    // ════════════════════════════════════════════════════════════════════════
+    #region Thrown State
+    // ════════════════════════════════════════════════════════════════════════
 
-    private void OnRappelPerformed(InputAction.CallbackContext ctx) => rappelRequis = true;
-
-    private void CommencerRetour()
+    private void UpdateThrown()
     {
-        if (derniereMain == null) return;
+        thrownTimer += Time.deltaTime;
 
-        etat = EtatMarteau.Retour;
-        vitesseRetourCourante = 0f;
+        // Emergency reset if hammer goes too far
+        if (lastHand != null &&
+            Vector3.Distance(transform.position, lastHand.transform.position) > emergencyResetDistance)
+        {
+            Debug.LogWarning("[MarteauThor] Out of bounds → emergency reset");
+            EmergencyReset();
+            return;
+        }
+
+        // Auto-return after delay
+        if (autoReturnDelay > 0f && thrownTimer >= autoReturnDelay)
+            StartReturn();
+    }
+
+    #endregion
+
+    // ════════════════════════════════════════════════════════════════════════
+    #region Return State
+    // ════════════════════════════════════════════════════════════════════════
+
+    private void OnRecallInput(InputAction.CallbackContext ctx) => recallRequested = true;
+
+    private void StartReturn()
+    {
+        if (lastHand == null) return;
+
+        state = HammerState.Returning;
+        currentReturnSpeed = 0f;
 
         rb.isKinematic = true;
         rb.linearVelocity = Vector3.zero;
         rb.angularVelocity = Vector3.zero;
 
         SetColliders(false);
-        SetGrabActif(false);
+        SetGrabActive(false);
 
-        JouerSon(sonRetour);
+        PlaySound(returnSound);
     }
 
-    private void MettreAJourRetour()
+    private void UpdateReturning()
     {
-        Vector3 cible = derniereMain.transform.position;
-        float distance = Vector3.Distance(transform.position, cible);
+        if (lastHand?.transform == null) { CancelReturn(); return; }
 
-        // ── Arrivée ──────────────────────────────────────────────────────────
-        if (distance <= distanceRattrapage)
+        Vector3 target = lastHand.transform.position;
+        float distance = Vector3.Distance(transform.position, target);
+
+        if (distance <= catchDistance)
         {
-            ArriverDansMain();
+            ArriveInHand();
             return;
         }
 
-        // ── Déplacement kinematic frame-by-frame (FIX [3]) ───────────────────
-        // Accélération progressive au démarrage
-        vitesseRetourCourante = Mathf.Lerp(
-            vitesseRetourCourante, vitesseRetour,
-            Time.deltaTime / Mathf.Max(smoothDemarrageRetour, 0.001f)
+        // Smooth acceleration
+        currentReturnSpeed = Mathf.Lerp(
+            currentReturnSpeed, returnSpeed,
+            Time.deltaTime / Mathf.Max(returnStartSmoothing, 0.001f)
         );
 
-        // Déplacement max cette frame : plafonné pour ne jamais dépasser la cible
-        float pas = Mathf.Min(vitesseRetourCourante * Time.deltaTime,
-                                      distance - distanceRattrapage * 0.5f);
-        Vector3 direction = (cible - transform.position).normalized;
-        transform.position += direction * pas;
+        // Frame-clamped step → impossible to overshoot
+        float step = Mathf.Min(currentReturnSpeed * Time.deltaTime,
+                               distance - catchDistance * 0.5f);
+        Vector3 direction = (target - transform.position).normalized;
+        transform.position += direction * step;
 
-        // ── Orientation (FIX [4] : dès le début, pas seulement à 1.5m) ───────
+        // Align handle toward hand
         if (direction != Vector3.zero)
         {
-            Quaternion rotCible = Quaternion.FromToRotation(
-                transform.TransformDirection(axePoigneeLocal.normalized),
+            Quaternion targetRot = Quaternion.FromToRotation(
+                transform.TransformDirection(handleLocalAxis.normalized),
                 direction
             ) * transform.rotation;
 
             transform.rotation = Quaternion.Slerp(
-                transform.rotation, rotCible,
-                vitesseAlignement * Time.deltaTime
+                transform.rotation, targetRot,
+                alignmentSpeed * Time.deltaTime
             );
         }
 
-        // ── Spin Mjolnir qui s'estompe en approchant ─────────────────────────
-        float spinFactor = Mathf.Clamp01(distance / Mathf.Max(distanceArretSpin, 0.01f));
+        // Mjolnir spin that fades on approach
+        float spinFactor = Mathf.Clamp01(distance / Mathf.Max(spinFadeDistance, 0.01f));
         if (spinFactor > 0.01f)
             transform.Rotate(
-                axePoigneeLocal.normalized,
-                vitesseRotationRetour * spinFactor * Time.deltaTime,
+                handleLocalAxis.normalized,
+                returnSpinSpeed * spinFactor * Time.deltaTime,
                 Space.Self
             );
     }
 
-    private void ArriverDansMain()
+    private void ArriveInHand()
     {
-        etat = EtatMarteau.AttenteRattrapage;
-        tempsAttenteRattrapage = 0f;
+        state = HammerState.AwaitingCatch;
+        floatingTimer = 0f;
 
-        // ⚡ FIX : sortir de kinematic AVANT de réactiver le grab
-        // XRI a besoin d'un rigidbody dynamique pour initialiser son velocity tracker
+        // ⚠ CRITICAL: exit kinematic BEFORE re-enabling grab
+        // XRI needs a dynamic rigidbody to initialize its velocity tracker properly
         rb.isKinematic = false;
-        rb.useGravity = false;              // pas de gravité pendant l'attente, mais physique active
+        rb.useGravity = false;          // No gravity while floating
         rb.linearVelocity = Vector3.zero;
         rb.angularVelocity = Vector3.zero;
 
         SetTrail(false);
         SetColliders(true);
-        SetGrabActif(true);
+        SetGrabActive(true);
 
-        EnvoyerHaptique(derniereMain, amplitudeRetour, dureeRetour);
-        JouerSon(sonRetour);
+        SendHaptic(lastHand, returnHapticAmplitude, returnHapticDuration);
+        PlaySound(returnSound);
     }
 
-    private void MettreAJourAttenteRattrapage()
+    private void UpdateAwaitingCatch()
     {
-        tempsAttenteRattrapage += Time.deltaTime;
+        floatingTimer += Time.deltaTime;
 
-        // ⚡ FIX : si déjà grabbé, on arrête tout — XRI gère le transform maintenant
-        if (grabInteractable.isSelected)
-            return;
+        // ⚠ CRITICAL: stop fighting XRI once the player grabbed
+        if (grab.isSelected) return;
 
-        // Floating près de la main SEULEMENT si pas encore grabbé
-        if (derniereMain?.transform != null)
+        if (lastHand?.transform != null)
         {
-            // Utiliser MovePosition au lieu de transform.position direct pour ne pas
-            // perturber le tracking de XRI si on passe en select pendant le Lerp
-            Vector3 nouvelle = Vector3.Lerp(
+            transform.position = Vector3.Lerp(
                 transform.position,
-                derniereMain.transform.position,
+                lastHand.transform.position,
                 Time.deltaTime * 25f
             );
-            transform.position = nouvelle;
         }
 
-        if (tempsAttenteRattrapage >= delaiAvantChute)
+        if (floatingTimer >= floatingDuration)
         {
-            rb.useGravity = graviteOriginale;  // gravité revient pour la chute
-            AbandonnerRetour();
+            rb.useGravity = originalGravity;
+            CancelReturn();
         }
     }
 
-    private void AbandonnerRetour()
+    private void CancelReturn()
     {
-        StopperPhysiqueRetour();
+        StopReturnPhysics();
         SetTrail(false);
         SetColliders(true);
-        SetGrabActif(true);
+        SetGrabActive(true);
 
-        etat = EtatMarteau.Lance;
-        tempsDepuisLancer = 0f;
+        state = HammerState.Thrown;
+        thrownTimer = 0f;
     }
 
-    private void ResetUrgence()
+    private void EmergencyReset()
     {
-        if (derniereMain?.transform != null)
-            transform.position = derniereMain.transform.position;
-        AbandonnerRetour();
+        if (lastHand?.transform != null)
+            transform.position = lastHand.transform.position;
+        CancelReturn();
     }
 
-    private void StopperPhysiqueRetour()
+    private void StopReturnPhysics()
     {
         rb.isKinematic = false;
-        rb.useGravity = graviteOriginale;
+        rb.useGravity = originalGravity;
         rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
     }
 
     #endregion
 
-    #region ── Impact ───────────────────────────────────────────────────────────
+    // ════════════════════════════════════════════════════════════════════════
+    #region Combat
+    // ════════════════════════════════════════════════════════════════════════
+
+    private void TrackVelocity()
+    {
+        // Manual velocity tracking — works in all states (Held, Thrown, etc.)
+        // because rb.linearVelocity is unreliable when grabbed by XRI
+        if (Time.deltaTime > 0f)
+            currentVelocity = (transform.position - previousPosition) / Time.deltaTime;
+        previousPosition = transform.position;
+    }
 
     void OnCollisionEnter(Collision collision)
     {
-        if (etat != EtatMarteau.Lance) return;
+        // Only deal damage when hammer is moving meaningfully (Thrown OR Held + swung)
+        if (state == HammerState.Returning || state == HammerState.AwaitingCatch) return;
 
-        float force = collision.impulse.magnitude;
-        if (force < 1f) return;
+        float impactSpeed = currentVelocity.magnitude;
+        if (impactSpeed < 0.5f) return;
 
-        JouerSon(sonImpact);
-        EnvoyerHaptique(derniereMain, amplitudeImpact * Mathf.Clamp01(force / 10f), dureeImpact);
+        // Layer check (perf optimization)
+        GameObject hitObject = collision.gameObject;
+        if ((enemyLayers.value & (1 << hitObject.layer)) == 0)
+        {
+            // Not an enemy — just play impact effects
+            PlayImpactEffects(impactSpeed);
+            return;
+        }
+
+        // Damage cooldown per object (prevents multi-hit on same enemy)
+        int instanceId = hitObject.GetInstanceID();
+        if (recentHits.TryGetValue(instanceId, out float lastHit) &&
+            Time.time - lastHit < hitCooldown)
+            return;
+        recentHits[instanceId] = Time.time;
+
+        // Find IDamageable on the hit object or its parents
+        IDamageable target = hitObject.GetComponentInParent<IDamageable>();
+        if (target == null)
+        {
+            PlayImpactEffects(impactSpeed);
+            return;
+        }
+
+        // Build hit info and deal damage
+        ContactPoint contact = collision.GetContact(0);
+        Vector3 impactDir = currentVelocity.sqrMagnitude > 0.01f
+            ? currentVelocity.normalized
+            : -contact.normal;
+
+        bool kill = alwaysInstantKill || impactSpeed >= minSpeedForKill || state == HammerState.Thrown;
+
+        HitInfo info = new HitInfo(
+            point: contact.point,
+            direction: impactDir,
+            impactSpeed: impactSpeed,
+            damage: damage,
+            knockbackForce: baseKnockbackForce * Mathf.Max(impactSpeed, 1f),
+            instantKill: kill,
+            source: gameObject
+        );
+
+        target.ReceiveHit(info);
+        PlayImpactEffects(impactSpeed);
+
+        if (kill && killSound != null)
+            PlaySound(killSound);
+    }
+
+    private void PlayImpactEffects(float impactSpeed)
+    {
+        PlaySound(impactSound);
+        float hapticStrength = impactHapticAmplitude * Mathf.Clamp01(impactSpeed / 10f);
+        SendHaptic(lastHand, hapticStrength, impactHapticDuration);
+    }
+
+    private void CleanupHitCooldowns()
+    {
+        // Periodically remove old entries to prevent dictionary growth
+        if (recentHits.Count == 0 || Time.frameCount % 120 != 0) return;
+
+        var toRemove = new System.Collections.Generic.List<int>();
+        foreach (var kvp in recentHits)
+            if (Time.time - kvp.Value > hitCooldown * 2f)
+                toRemove.Add(kvp.Key);
+        foreach (var id in toRemove)
+            recentHits.Remove(id);
     }
 
     #endregion
 
-    #region ── Helpers ──────────────────────────────────────────────────────────
+    // ════════════════════════════════════════════════════════════════════════
+    #region Helpers
+    // ════════════════════════════════════════════════════════════════════════
 
-    /// Active/désactive le XRGrabInteractable.
-    /// Désactivé pendant le Retour → pas de grab accidentel ni de lag.
-    /// Réactivé en AttenteRattrapage → le joueur peut saisir normalement.
-    private void SetGrabActif(bool actif) => grabInteractable.enabled = actif;
+    private void SetGrabActive(bool active) => grab.enabled = active;
 
-    private void SetColliders(bool actif)
+    private void SetColliders(bool active)
     {
         foreach (var col in colliders)
-            col.enabled = actif;
+            col.enabled = active;
     }
 
-    private void SetTrail(bool actif)
+    private void SetTrail(bool active)
     {
         if (trail == null) return;
-        trail.emitting = actif;
-        if (!actif) trail.Clear();
+        trail.emitting = active;
+        if (!active) trail.Clear();
     }
 
-    private void JouerSon(AudioClip clip)
+    private void PlaySound(AudioClip clip)
     {
         if (audioSource != null && clip != null)
             audioSource.PlayOneShot(clip);
     }
 
-    private void EnvoyerHaptique(IXRSelectInteractor interactor, float amplitude, float duree)
+    private void SendHaptic(IXRSelectInteractor interactor, float amplitude, float duration)
     {
         if (interactor is XRBaseInputInteractor ctrl)
-            ctrl.SendHapticImpulse(amplitude, duree);
+            ctrl.SendHapticImpulse(amplitude, duration);
     }
 
-    private void ConstruireTrail()
+    private void BuildTrail()
     {
-        if (!activerTrail) return;
+        if (!enableTrail) return;
 
         trail = gameObject.AddComponent<TrailRenderer>();
-        trail.time = dureeTrail;           // FIX [1] : 0.55s vs 0.18s avant
-        trail.startWidth = largeurTrail;         // FIX [1] : 0.09 vs 0.06 avant
+        trail.time = trailDuration;
+        trail.startWidth = trailWidth;
         trail.endWidth = 0f;
-        trail.startColor = couleurTrailDebut;
-        trail.endColor = couleurTrailFin;
+        trail.startColor = trailStartColor;
+        trail.endColor = trailEndColor;
         trail.minVertexDistance = 0.02f;
         trail.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
         trail.emitting = false;
 
-        // Shader compatible Built-in / URP / HDRP — tente les 3 dans l'ordre
+        // Cross-pipeline shader fallback
         Shader shader = Shader.Find("Sprites/Default")
                      ?? Shader.Find("Universal Render Pipeline/Particles/Unlit")
                      ?? Shader.Find("Particles/Standard Unlit");
