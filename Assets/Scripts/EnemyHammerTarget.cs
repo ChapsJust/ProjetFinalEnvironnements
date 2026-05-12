@@ -1,12 +1,11 @@
 using UnityEngine;
-using ThorVR.Combat;
 
 /// <summary>
 /// Exemple d'ennemi qui réagit aux coups de marteau.
 /// À adapter selon ton type d'ennemi (humanoïde, créature, etc.)
 /// </summary>
 [RequireComponent(typeof(Rigidbody))]
-public class EnemyHammerTarget : MonoBehaviour, IDamageable
+public class EnemyHammerTarget : ICible
 {
     [Header("═══ KNOCKBACK ═══")]
     [Tooltip("Multiplicateur de la force reçue du marteau")]
@@ -15,9 +14,7 @@ public class EnemyHammerTarget : MonoBehaviour, IDamageable
     [SerializeField] private float upwardForce = 4f;
 
     [Header("═══ MORT ═══")]
-    [Tooltip("Si true, tout impact tue instantanément (Mjolnir mode)")]
-    [SerializeField] private bool dieOnAnyHit = true;
-    [Tooltip("Vitesse minimum du marteau pour tuer (si pas dieOnAnyHit)")]
+    [Tooltip("Vitesse minimum du marteau pour tuer")]
     [SerializeField] private float minSpeedToKill = 5f;
     [Tooltip("Délai avant destruction du GameObject (laisse le ragdoll voler)")]
     [SerializeField] private float destroyDelay = 5f;
@@ -35,7 +32,7 @@ public class EnemyHammerTarget : MonoBehaviour, IDamageable
         rb = GetComponent<Rigidbody>();
     }
 
-    public void ReceiveHit(HitInfo info)
+    public override void ReceiveHit(HitInfo info)
     {
         if (isDead) return;
 
@@ -43,15 +40,11 @@ public class EnemyHammerTarget : MonoBehaviour, IDamageable
         SpawnHitEffect(info.point);
         PlaySound(hitSound, info.point);
 
-        // Décide si l'ennemi meurt
-        bool shouldDie = info.instantKill
-                      || dieOnAnyHit
-                      || info.impactSpeed >= minSpeedToKill;
+        bool shouldDie = info.impactSpeed >= minSpeedToKill && info.lethal;
 
+        ApplyKnockback(info);
         if (shouldDie)
             Die(info);
-        else
-            ApplyKnockback(info);
     }
 
     private void ApplyKnockback(HitInfo info)
@@ -67,6 +60,7 @@ public class EnemyHammerTarget : MonoBehaviour, IDamageable
     {
         isDead = true;
         PlaySound(deathSound, info.point);
+        NotifierDetruit();
 
         // Désactive l'IA / NavMeshAgent / scripts d'attaque s'il y en a
         DisableEnemyBehaviour();

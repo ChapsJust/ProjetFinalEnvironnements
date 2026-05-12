@@ -4,7 +4,6 @@ using UnityEngine.InputSystem;
 using UnityEngine.XR.Interaction.Toolkit;
 using UnityEngine.XR.Interaction.Toolkit.Interactables;
 using UnityEngine.XR.Interaction.Toolkit.Interactors;
-using ThorVR.Combat;
 
 /// <summary>
 /// Mjolnir-style hammer pour XR Interaction Toolkit 3.x
@@ -34,7 +33,7 @@ public class MarteauThor : MonoBehaviour
     #region States
     // ════════════════════════════════════════════════════════════════════════
 
-    private enum HammerState
+    public enum HammerState
     {
         Held,           // Tenu par le joueur
         Thrown,         // En vol libre après lancer
@@ -105,9 +104,6 @@ public class MarteauThor : MonoBehaviour
     // ════════════════════════════════════════════════════════════════════════
 
     [Header("═══ COMBAT ═══")]
-    [Tooltip("Dégâts bruts à l'impact (si l'ennemi a un système de HP)")]
-    [SerializeField] private float damage = 100f;
-
     [Tooltip("Force de knockback de base (multipliée par la vitesse d'impact)")]
     [SerializeField] private float baseKnockbackForce = 25f;
 
@@ -497,7 +493,7 @@ public class MarteauThor : MonoBehaviour
         recentHits[instanceId] = Time.time;
 
         // Find IDamageable on the hit object or its parents
-        IDamageable target = hitObject.GetComponentInParent<IDamageable>();
+        ICible target = hitObject.GetComponentInParent<ICible>();
         if (target == null)
         {
             PlayImpactEffects(impactSpeed);
@@ -512,13 +508,12 @@ public class MarteauThor : MonoBehaviour
 
         bool kill = alwaysInstantKill || impactSpeed >= minSpeedForKill || state == HammerState.Thrown;
 
-        HitInfo info = new HitInfo(
+        ICible.HitInfo info = new(
             point: contact.point,
             direction: impactDir,
             impactSpeed: impactSpeed,
-            damage: damage,
             knockbackForce: baseKnockbackForce * Mathf.Max(impactSpeed, 1f),
-            instantKill: kill,
+            lethal: kill,
             source: gameObject
         );
 

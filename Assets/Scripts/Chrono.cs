@@ -1,51 +1,54 @@
 using TMPro;
 using UnityEngine;
-using UnityEngine.UIElements;
 using UnityEngine.Events;
 
 /// <summary>
-/// Représente le chronomètre du jeu.
+/// ReprÃ©sente le chronomÃ¨tre du jeu.
 /// </summary>
-public class Chrono: MonoBehaviour
+public class Chrono
 {
-    [SerializeField, Tooltip("Afficheur du temps")]
     private TextMeshProUGUI afficheurTemps;
 
-    [SerializeField, Tooltip("Durée restante du chronomètre en secondes")]
     private float tempsRestant = 0;
+    public float TempsRestant { get => tempsRestant; set => tempsRestant = value; }
 
-    [SerializeField, Tooltip("Événement lorsque le temps est écoulé")]
-    UnityEvent onTempsEcoule;
+    private UnityEvent onTempsEcoule = new();
+
+    private void Awake()
+    {
+    }
 
     private void Update()
     {
-        if (tempsRestant > 0.0f) {
-            tempsRestant -= Time.deltaTime;
-            if (tempsRestant < 0.0f) {
-                tempsRestant = 0.0f;
+        if (TempsRestant > 0.0f) {
+            TempsRestant -= Time.deltaTime;
+            if (TempsRestant < 0.0f) {
+                TempsRestant = 0.0f;
                 onTempsEcoule?.Invoke();
             }
-            MettreAJourAffichage();
         }
     }
 
-    /// <summary>
-    /// Met à jour l'affichage du temps restant dans le format mm:ss.
-    /// </summary>
-    private void MettreAJourAffichage()
+    public string GetFormatString()
     {
         int minutes = Mathf.FloorToInt(tempsRestant / 60.0f);
         int secondes = Mathf.FloorToInt(tempsRestant % 60.0f);
-        afficheurTemps.text = string.Format("{0:00}:{1:00}", minutes, secondes);
+        return string.Format("{0:00}:{1:00}", minutes, secondes);
     }
 
     public void Demarrer(float temps)
     {
-        tempsRestant = temps;
+        TempsRestant = temps;
     }
 
     public void SetTempsEcouleCallback(UnityAction callback)
     {
+        onTempsEcoule.RemoveListener(callback);
         onTempsEcoule.AddListener(callback);
+    }
+
+    public void Arreter()
+    {
+        TempsRestant = 0f;
     }
 }

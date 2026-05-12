@@ -18,8 +18,23 @@ public class Pointage : MonoBehaviour
     [SerializeField, Tooltip("Afficheur des points")]
     private TextMeshProUGUI afficheur;
 
+    private void Awake()
+    {
+        MettreAJourAffichage();
+    }
+
+    public void AjouterPoints(int pointsAjoutes)
+    {
+        Points += pointsAjoutes;
+    }
+
+    public void Reinitialiser()
+    {
+        Points = 0;
+    }
+
     /// <summary>
-    /// Met à jour l'affichage des points.
+    /// Met ï¿½ jour l'affichage des points.
     /// </summary>
     private void MettreAJourAffichage()
     {
