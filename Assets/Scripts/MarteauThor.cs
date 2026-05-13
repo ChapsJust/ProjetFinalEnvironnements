@@ -55,7 +55,7 @@ public class MarteauThor : MonoBehaviour
     [SerializeField] private float throwSpinSpeed = 720f;
 
     [Tooltip("Vitesse minimum pour considérer un impact comme 'kill' (m/s)")]
-    [SerializeField] private float minSpeedForKill = 3f;
+    [SerializeField] private float minSpeedForKill = .03f;
 
     #endregion
 
@@ -473,8 +473,7 @@ public class MarteauThor : MonoBehaviour
         // Only deal damage when hammer is moving meaningfully (Thrown OR Held + swung)
         if (state == HammerState.Returning || state == HammerState.AwaitingCatch) return;
 
-        float impactSpeed = currentVelocity.magnitude;
-        if (impactSpeed < 0.5f) return;
+        float impactSpeed = collision.relativeVelocity.magnitude;
 
         // Layer check (perf optimization)
         GameObject hitObject = collision.gameObject;
@@ -492,8 +491,8 @@ public class MarteauThor : MonoBehaviour
             return;
         recentHits[instanceId] = Time.time;
 
-        // Find IDamageable on the hit object or its parents
-        ICible target = hitObject.GetComponentInParent<ICible>();
+        // Find Cible on the hit object or its parents
+        Cible target = hitObject.GetComponentInParent<Cible>();
         if (target == null)
         {
             PlayImpactEffects(impactSpeed);
@@ -508,7 +507,7 @@ public class MarteauThor : MonoBehaviour
 
         bool kill = alwaysInstantKill || impactSpeed >= minSpeedForKill || state == HammerState.Thrown;
 
-        ICible.HitInfo info = new(
+        Cible.HitInfo info = new(
             point: contact.point,
             direction: impactDir,
             impactSpeed: impactSpeed,

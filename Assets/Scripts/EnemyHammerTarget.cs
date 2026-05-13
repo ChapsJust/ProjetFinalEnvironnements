@@ -5,7 +5,7 @@ using UnityEngine;
 /// À adapter selon ton type d'ennemi (humanoïde, créature, etc.)
 /// </summary>
 [RequireComponent(typeof(Rigidbody))]
-public class EnemyHammerTarget : ICible
+public class EnemyHammerTarget : Cible
 {
     [Header("═══ KNOCKBACK ═══")]
     [Tooltip("Multiplicateur de la force reçue du marteau")]
@@ -15,14 +15,13 @@ public class EnemyHammerTarget : ICible
 
     [Header("═══ MORT ═══")]
     [Tooltip("Vitesse minimum du marteau pour tuer")]
-    [SerializeField] private float minSpeedToKill = 5f;
+    [SerializeField] private float minSpeedToKill = .05f;
     [Tooltip("Délai avant destruction du GameObject (laisse le ragdoll voler)")]
     [SerializeField] private float destroyDelay = 5f;
 
     [Header("═══ EFFETS ═══")]
     [SerializeField] private GameObject hitVFXPrefab;
     [SerializeField] private AudioClip hitSound;
-    [SerializeField] private AudioClip deathSound;
 
     private Rigidbody rb;
     private bool isDead;
@@ -34,11 +33,9 @@ public class EnemyHammerTarget : ICible
 
     public override void ReceiveHit(HitInfo info)
     {
+        Debug.Log("Enemy received hit at " + info.point + " with speed " + info.impactSpeed);
         if (isDead) return;
 
-        // VFX et son d'impact
-        SpawnHitEffect(info.point);
-        PlaySound(hitSound, info.point);
 
         bool shouldDie = info.impactSpeed >= minSpeedToKill && info.lethal;
 
@@ -51,7 +48,7 @@ public class EnemyHammerTarget : ICible
     {
         // Force = direction de l'impact + composante vers le haut
         Vector3 force = info.direction.normalized * info.knockbackForce * knockbackMultiplier
-                      + Vector3.up * upwardForce * info.knockbackForce * 0.1f;
+                      + Vector3.up * upwardForce * info.knockbackForce * 0.02f;
 
         rb.AddForceAtPosition(force, info.point, ForceMode.Impulse);
     }
@@ -59,7 +56,8 @@ public class EnemyHammerTarget : ICible
     private void Die(HitInfo info)
     {
         isDead = true;
-        PlaySound(deathSound, info.point);
+        PlaySound(hitSound, info.point);
+        SpawnDieEffect(info.point);
         NotifierDetruit();
 
         // Désactive l'IA / NavMeshAgent / scripts d'attaque s'il y en a
@@ -101,7 +99,7 @@ public class EnemyHammerTarget : ICible
         rb.AddTorque(Random.insideUnitSphere * info.knockbackForce, ForceMode.Impulse);
     }
 
-    private void SpawnHitEffect(Vector3 point)
+    private void SpawnDieEffect(Vector3 point)
     {
         if (hitVFXPrefab != null)
         {

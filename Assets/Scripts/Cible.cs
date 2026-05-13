@@ -4,10 +4,10 @@ using UnityEngine.Events;
 /// <summary>
 /// Représente une cible pouvant recevoir un coup de marteau.
 /// </summary>
-public class ICible : MonoBehaviour
+public class Cible : MonoBehaviour
 {
     [SerializeField]
-    public UnityEvent<ICible> onDetruit = new UnityEvent<ICible>();
+    public UnityEvent<Cible> onDetruit = new UnityEvent<Cible>();
 
     /// <summary>
     /// Reçoit les dégâts du marteau.

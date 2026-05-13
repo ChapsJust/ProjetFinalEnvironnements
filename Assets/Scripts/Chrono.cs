@@ -14,11 +14,7 @@ public class Chrono
 
     private UnityEvent onTempsEcoule = new();
 
-    private void Awake()
-    {
-    }
-
-    private void Update()
+    public void Update()
     {
         if (TempsRestant > 0.0f) {
             TempsRestant -= Time.deltaTime;

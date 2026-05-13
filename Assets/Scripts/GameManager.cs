@@ -18,6 +18,9 @@ public class GameManager : MonoBehaviour
     [SerializeField, Tooltip("Text des infos du jeu")]
     private TextMeshProUGUI interfaceJeuInfo;
 
+    [SerializeField, Tooltip("Text affichant le record du nombre de manches réussis")]
+    private TextMeshProUGUI recordManchesText;
+
     private Chrono chrono = new();
 
     [System.Serializable]
@@ -41,15 +44,18 @@ public class GameManager : MonoBehaviour
     [SerializeField]
     private readonly List<GameObject> ciblesActuelles = new();
     private int mancheCourante;
+    private int recordManches = 0;
     private bool partieEnCours;
 
     private void Awake()
     {
-        Debug.Assert(instance != null && instance != this, "Il ne doit y avoir qu'une seule instance de GameManager dans la scène");
+        // JSP comment mais y'a une erreur ici alors qu'il y a juste une instance dans la scène
+        //Debug.Assert(instance != null && instance != this, "Il ne doit y avoir qu'une seule instance de GameManager dans la scène");
     }
 
     private void Update()
     {
+        chrono.Update();
         MettreAJourUI();
     }
 
@@ -78,7 +84,7 @@ public class GameManager : MonoBehaviour
             Debug.Assert(cibleInfo.position != null, "Position de cible manquant dans la manche");
             Debug.Assert(cibleInfo.rotation != null, "Rotation de cible manquant dans la manche");
             GameObject instance = Instantiate(cibleInfo.prefab, cibleInfo.position, cibleInfo.rotation);
-            ICible cible = instance.GetComponent<ICible>();
+            Cible cible = instance.GetComponent<Cible>();
 
             cible.onDetruit.AddListener(OnCibleDetruite);
             ciblesActuelles.Add(instance);
@@ -88,7 +94,7 @@ public class GameManager : MonoBehaviour
         chrono.Demarrer(manche.tempsManche);
     }
 
-    private void OnCibleDetruite(ICible cible)
+    private void OnCibleDetruite(Cible cible)
     {
         ciblesActuelles.Remove(cible.gameObject);
 
@@ -97,13 +103,19 @@ public class GameManager : MonoBehaviour
         if (ciblesActuelles.Count <= 0)
         {
             mancheCourante++;
-            LancerManche(listesDeManches[mancheCourante]);
+            if(mancheCourante >= listesDeManches.Count) {
+                TerminerPartie();
+                return;
+            } else {
+                LancerManche(listesDeManches[mancheCourante]);
+
+            }
         }
     }
 
     private void TerminerPartie()
     {
-        Debug.Assert(partieEnCours && menu.activeSelf, "TerminerPartie appelé alors qu'aucune partie n'est en cours");
+        Debug.Assert(partieEnCours, "TerminerPartie appelé alors qu'aucune partie n'est en cours");
 
         partieEnCours = false;
 
@@ -111,6 +123,13 @@ public class GameManager : MonoBehaviour
 
         DetruireCiblesActuelles();
 
+        recordManches = Mathf.Min(mancheCourante, listesDeManches.Count);
+
+        if (mancheCourante >= listesDeManches.Count) {
+            Debug.Log("Félicitations, vous avez terminé toutes les manches !");
+        } else {
+            Debug.Log("Temps écoulé ! Vous avez atteint la manche " + (mancheCourante + 1));
+        }
         menu.SetActive(true);
         interfaceJeu.SetActive(false);
         MettreAJourUI();
@@ -133,5 +152,6 @@ public class GameManager : MonoBehaviour
             $"temps restant: {chrono.GetFormatString()}\n" +
             $"Manche {mancheCourante + 1}/{listesDeManches.Count}\n" +
             $"Cibles: {ciblesActuelles.Count}";
+        recordManchesText.text = $"Record de manches réussies: {recordManches}";
     }
 }

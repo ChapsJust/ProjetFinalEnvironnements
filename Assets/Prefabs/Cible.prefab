@@ -163,5 +163,4 @@ MonoBehaviour:
   minSpeedToKill: 5
   destroyDelay: 5
   hitVFXPrefab: {fileID: 0}
-  hitSound: {fileID: 0}
-  deathSound: {fileID: 0}
+  hitSound: {fileID: 8300000, guid: 703e0ee6a2a75244ea7f4db577b52f69, type: 3}
