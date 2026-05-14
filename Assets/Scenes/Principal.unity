@@ -1091,7 +1091,40 @@ MonoBehaviour:
     - prefab: {fileID: 4184230393094646414, guid: c4f565593845fce448d2b9dcf41a6d7d, type: 3}
       position: {x: 0, y: 1.234, z: 7}
       rotation: {x: 0, y: 0, z: 0, w: 0}
-    tempsManche: 30
+    tempsManche: 10
+  - cibles:
+    - prefab: {fileID: 6191364859705355559, guid: 2b5ba753b46c13343a02e42b01909c77, type: 3}
+      position: {x: 0, y: 4, z: 7}
+      rotation: {x: 0, y: 0, z: 0, w: 0}
+    - prefab: {fileID: 4184230393094646414, guid: c4f565593845fce448d2b9dcf41a6d7d, type: 3}
+      position: {x: 2, y: 1.234, z: 7}
+      rotation: {x: 0, y: 0, z: 0, w: 0}
+    - prefab: {fileID: 4184230393094646414, guid: c4f565593845fce448d2b9dcf41a6d7d, type: 3}
+      position: {x: -2, y: 1.234, z: 7}
+      rotation: {x: 0, y: 0, z: 0, w: 0}
+    tempsManche: 15
+  - cibles:
+    - prefab: {fileID: 4184230393094646414, guid: c4f565593845fce448d2b9dcf41a6d7d, type: 3}
+      position: {x: 0, y: 1.234, z: 7}
+      rotation: {x: 0, y: 0, z: 0, w: 0}
+    - prefab: {fileID: 4184230393094646414, guid: c4f565593845fce448d2b9dcf41a6d7d, type: 3}
+      position: {x: -1.5, y: 1.234, z: 6.5}
+      rotation: {x: 0, y: 0, z: 0, w: 0}
+    - prefab: {fileID: 4184230393094646414, guid: c4f565593845fce448d2b9dcf41a6d7d, type: 3}
+      position: {x: 1.5, y: 1.234, z: 6.5}
+      rotation: {x: 0, y: 0, z: 0, w: 0}
+    tempsManche: 15
+  - cibles:
+    - prefab: {fileID: 6191364859705355559, guid: 2b5ba753b46c13343a02e42b01909c77, type: 3}
+      position: {x: 0, y: 3, z: 7}
+      rotation: {x: 0, y: 0, z: 0, w: 0}
+    - prefab: {fileID: 6191364859705355559, guid: 2b5ba753b46c13343a02e42b01909c77, type: 3}
+      position: {x: -1.5, y: 3, z: 6.5}
+      rotation: {x: 0, y: 0, z: 0, w: 0}
+    - prefab: {fileID: 6191364859705355559, guid: 2b5ba753b46c13343a02e42b01909c77, type: 3}
+      position: {x: 1.5, y: 3, z: 6.5}
+      rotation: {x: 0, y: 0, z: 0, w: 0}
+    tempsManche: 15
   joueur: {fileID: 1350056040}
 --- !u!4 &1248454210
 Transform:
