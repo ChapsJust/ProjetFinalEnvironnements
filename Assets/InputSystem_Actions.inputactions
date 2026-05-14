@@ -88,9 +88,18 @@
                     "initialStateCheck": false
                 },
                 {
-                    "name": "Rappel",
+                    "name": "RappelLeft",
                     "type": "Button",
                     "id": "ab6923d5-2dd1-4949-98d9-c3621e143fe9",
+                    "expectedControlType": "",
+                    "processors": "",
+                    "interactions": "",
+                    "initialStateCheck": false
+                },
+                {
+                    "name": "RappelRight",
+                    "type": "Button",
+                    "id": "356a2424-d46f-4139-907b-61c63cabb081",
                     "expectedControlType": "",
                     "processors": "",
                     "interactions": "",
@@ -490,7 +499,7 @@
                     "interactions": "",
                     "processors": "",
                     "groups": "",
-                    "action": "Rappel",
+                    "action": "RappelLeft",
                     "isComposite": false,
                     "isPartOfComposite": false
                 },
@@ -501,7 +510,29 @@
                     "interactions": "",
                     "processors": "",
                     "groups": "",
-                    "action": "Rappel",
+                    "action": "RappelLeft",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "d093817e-3aaf-49d5-b148-04dd9cca1fca",
+                    "path": "<Keyboard>/e",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "RappelRight",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "d7d66943-6e78-48f6-95df-bcc582435254",
+                    "path": "<XRController>{RightHand}/{PrimaryButton}",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "RappelRight",
                     "isComposite": false,
                     "isPartOfComposite": false
                 }
