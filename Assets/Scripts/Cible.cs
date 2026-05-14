@@ -7,7 +7,7 @@ using UnityEngine.Events;
 public class Cible : MonoBehaviour
 {
     [SerializeField]
-    public UnityEvent<Cible> onDetruit = new UnityEvent<Cible>();
+    public UnityEvent<Cible> onDetruit = new();
 
     /// <summary>
     /// Reçoit les dégâts du marteau.
@@ -52,5 +52,4 @@ public class Cible : MonoBehaviour
             this.source = source;
         }
     }
-
 }

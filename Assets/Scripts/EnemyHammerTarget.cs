@@ -7,6 +7,11 @@ using UnityEngine;
 [RequireComponent(typeof(Rigidbody))]
 public class EnemyHammerTarget : Cible
 {
+    [Header("═══ SUIVI ═══")]
+    [Tooltip("Vitesse de déplacement vers le joueur")]
+    [SerializeField] private float moveSpeed = 2f;
+    [SerializeField] private Transform target;
+
     [Header("═══ KNOCKBACK ═══")]
     [Tooltip("Multiplicateur de la force reçue du marteau")]
     [SerializeField] private float knockbackMultiplier = 1f;
@@ -29,6 +34,39 @@ public class EnemyHammerTarget : Cible
     void Awake()
     {
         rb = GetComponent<Rigidbody>();
+        target = TrouverJoueur();
+    }
+
+    Transform TrouverJoueur()
+    {
+        GameObject player = GameObject.FindGameObjectWithTag("Player");
+        if (player != null)
+            return player.transform;
+
+        if (Camera.main != null)
+            return Camera.main.transform;
+
+        return null;
+    }
+
+    void FixedUpdate()
+    {
+        GererDeplacement();
+    }
+
+    private void GererDeplacement()
+    {
+        if (isDead || target == null)
+            return;
+
+        Vector3 direction = target.position - rb.position;
+        direction.y = 0f;
+
+        if (direction.sqrMagnitude < 0.01f)
+            return;
+
+        Vector3 nextPosition = rb.position + moveSpeed * Time.fixedDeltaTime * direction.normalized;
+        rb.MovePosition(nextPosition);
     }
 
     public override void ReceiveHit(HitInfo info)
@@ -47,8 +85,8 @@ public class EnemyHammerTarget : Cible
     private void ApplyKnockback(HitInfo info)
     {
         // Force = direction de l'impact + composante vers le haut
-        Vector3 force = info.direction.normalized * info.knockbackForce * knockbackMultiplier
-                      + Vector3.up * upwardForce * info.knockbackForce * 0.02f;
+        Vector3 force = info.knockbackForce * knockbackMultiplier * info.direction.normalized
+                      + 0.02f * info.knockbackForce * upwardForce * Vector3.up;
 
         rb.AddForceAtPosition(force, info.point, ForceMode.Impulse);
     }
@@ -91,8 +129,8 @@ public class EnemyHammerTarget : Cible
         }
 
         // Force massive sur le rigidbody principal
-        Vector3 launchForce = info.direction.normalized * info.knockbackForce * knockbackMultiplier * 2f
-                            + Vector3.up * upwardForce * 5f;
+        Vector3 launchForce = 2f * info.knockbackForce * knockbackMultiplier * info.direction.normalized
+                            + 5f * upwardForce * Vector3.up;
         rb.AddForceAtPosition(launchForce, info.point, ForceMode.Impulse);
 
         // Spin chaotique pour effet dramatique

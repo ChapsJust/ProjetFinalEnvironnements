@@ -105,7 +105,7 @@ public class MarteauThor : MonoBehaviour
 
     [Header("═══ COMBAT ═══")]
     [Tooltip("Force de knockback de base (multipliée par la vitesse d'impact)")]
-    [SerializeField] private float baseKnockbackForce = 25f;
+    [SerializeField] private float baseKnockbackForce = 5f;
 
     [Tooltip("Si true, tue toujours instantanément peu importe la vitesse")]
     [SerializeField] private bool alwaysInstantKill = false;
@@ -142,8 +142,8 @@ public class MarteauThor : MonoBehaviour
 
     [Header("═══ TRAIL VISUEL ═══")]
     [SerializeField] private bool enableTrail = true;
-    [SerializeField] private Color trailStartColor = new Color(0.45f, 0.75f, 1f, 1f);
-    [SerializeField] private Color trailEndColor = new Color(0.1f, 0.3f, 1f, 0f);
+    [SerializeField] private Color trailStartColor = new(0.45f, 0.75f, 1f, 1f);
+    [SerializeField] private Color trailEndColor = new(0.1f, 0.3f, 1f, 0f);
     [SerializeField] private float trailWidth = 0.09f;
     [SerializeField] private float trailDuration = 0.55f;
 
@@ -470,8 +470,7 @@ public class MarteauThor : MonoBehaviour
 
     void OnCollisionEnter(Collision collision)
     {
-        // Only deal damage when hammer is moving meaningfully (Thrown OR Held + swung)
-        if (state == HammerState.Returning || state == HammerState.AwaitingCatch) return;
+        if (state == HammerState.AwaitingCatch) return;
 
         float impactSpeed = collision.relativeVelocity.magnitude;
 
