@@ -161,12 +161,25 @@ MonoBehaviour:
       m_Calls: []
   moveSpeed: 2
   target: {fileID: 0}
+  stopDistance: 0.6
+  warmupDelay: 1
   knockbackMultiplier: 1
   upwardForce: 2
   minSpeedToKill: 5
   destroyDelay: 5
   hitVFXPrefab: {fileID: 0}
   hitSound: {fileID: 8300000, guid: 703e0ee6a2a75244ea7f4db577b52f69, type: 3}
+  spawnSound: {fileID: 8300000, guid: 16fba6d30ed741d4a9fdd6e79ee2f3ac, type: 3}
+  spawnVolume: 1
+  spawnVFXPrefab: {fileID: 0}
+  spawnScaleDuration: 0.5
+  footstepSound: {fileID: 8300000, guid: b4f3eb0b9e59d4b4c92eb118683bf74c, type: 3}
+  footstepVolume: 0.431
+  footstepInterval: 0.45
+  stuckCheckInterval: 2.5
+  stuckMoveThreshold: 0.15
+  yMinimum: -10
+  respawnRadius: 6
 --- !u!114 &1871422994308802514
 MonoBehaviour:
   m_ObjectHideFlags: 0

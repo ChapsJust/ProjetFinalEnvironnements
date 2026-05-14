@@ -34,7 +34,8 @@ public class Chrono
 
     public void Demarrer(float temps)
     {
-        TempsRestant = temps;
+        // Évite les valeurs négatives ou nulles qui couperaient le chrono immédiatement.
+        TempsRestant = Mathf.Max(temps, 0.01f);
     }
 
     public void SetTempsEcouleCallback(UnityAction callback)

@@ -613,6 +613,10 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 0}
     m_Modifications:
+    - target: {fileID: 58445280694286476, guid: f6336ac4ac8b4d34bc5072418cdc62a0, type: 3}
+      propertyPath: m_IsActive
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 1717954561962503725, guid: f6336ac4ac8b4d34bc5072418cdc62a0, type: 3}
       propertyPath: m_Name
       value: XR Origin (XR Rig)
@@ -655,6 +659,10 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 1717954561962503726, guid: f6336ac4ac8b4d34bc5072418cdc62a0, type: 3}
       propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3904471525139099824, guid: f6336ac4ac8b4d34bc5072418cdc62a0, type: 3}
+      propertyPath: m_IsActive
       value: 0
       objectReference: {fileID: 0}
     m_RemovedComponents: []
@@ -1089,17 +1097,8 @@ MonoBehaviour:
     - prefab: {fileID: 6191364859705355559, guid: 2b5ba753b46c13343a02e42b01909c77, type: 3}
       position: {x: -2, y: 2, z: 5}
       rotation: {x: 0, y: 0, z: 0, w: 0}
-    - prefab: {fileID: 6191364859705355559, guid: 2b5ba753b46c13343a02e42b01909c77, type: 3}
-      position: {x: -2, y: 2, z: 5}
-      rotation: {x: 0, y: 0, z: 0, w: 0}
     tempsManche: 30
   - cibles:
-    - prefab: {fileID: 4184230393094646414, guid: c4f565593845fce448d2b9dcf41a6d7d, type: 3}
-      position: {x: 0, y: 1.234, z: 7}
-      rotation: {x: 0, y: 0, z: 0, w: 0}
-    - prefab: {fileID: 4184230393094646414, guid: c4f565593845fce448d2b9dcf41a6d7d, type: 3}
-      position: {x: 0, y: 1.234, z: 7}
-      rotation: {x: 0, y: 0, z: 0, w: 0}
     - prefab: {fileID: 4184230393094646414, guid: c4f565593845fce448d2b9dcf41a6d7d, type: 3}
       position: {x: 0, y: 1.234, z: 7}
       rotation: {x: 0, y: 0, z: 0, w: 0}
@@ -1150,14 +1149,18 @@ MonoBehaviour:
     - prefab: {fileID: 4184230393094646414, guid: c4f565593845fce448d2b9dcf41a6d7d, type: 3}
       position: {x: -2, y: 1.234, z: 7}
       rotation: {x: 0, y: 0, z: 0, w: 0}
-    - prefab: {fileID: 4184230393094646414, guid: c4f565593845fce448d2b9dcf41a6d7d, type: 3}
-      position: {x: -2, y: 1.234, z: 7}
-      rotation: {x: 0, y: 0, z: 0, w: 0}
-    - prefab: {fileID: 4184230393094646414, guid: c4f565593845fce448d2b9dcf41a6d7d, type: 3}
-      position: {x: -2, y: 1.234, z: 7}
-      rotation: {x: 0, y: 0, z: 0, w: 0}
     tempsManche: 30
   joueur: {fileID: 1350056040}
+  spawnAleatoireAutourJoueur: 1
+  spawnRadius: 9
+  spawnRadiusJitter: 4
+  minSpawnDistance: 5
+  spawnAngleMin: 30
+  spawnArcDegrees: 120
+  spawnYOffset: 0.05
+  spawnGroundLayers:
+    serializedVersion: 2
+    m_Bits: 4294967295
 --- !u!4 &1248454210
 Transform:
   m_ObjectHideFlags: 0

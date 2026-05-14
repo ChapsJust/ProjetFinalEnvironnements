@@ -55,7 +55,13 @@ public class MarteauThor : MonoBehaviour
     [SerializeField] private float throwSpinSpeed = 720f;
 
     [Tooltip("Vitesse minimum pour considérer un impact comme 'kill' (m/s)")]
-    [SerializeField] private float minSpeedForKill = .03f;
+    [SerializeField] private float minSpeedForKill = 1.5f;
+
+    [Tooltip("Vitesse minimum pour jouer le son d'impact (m/s) - évite le spam sur le sol")]
+    [SerializeField] private float minSpeedForImpactSfx = 0.6f;
+
+    [Tooltip("Tag du joueur - le marteau ignorera les collisions physiques avec lui")]
+    [SerializeField] private string playerTag = "Player";
 
     #endregion
 
@@ -188,14 +194,46 @@ public class MarteauThor : MonoBehaviour
         BuildTrail();
     }
 
+    void Start()
+    {
+        // Empêche le joueur de se tenir / sauter sur le marteau.
+        // Les colliders du marteau ignorent ceux du joueur, mais peuvent encore
+        // toucher les ennemis et être saisis par la main XR.
+        IgnorePlayerCollisions();
+    }
+
+    private void IgnorePlayerCollisions()
+    {
+        if (string.IsNullOrEmpty(playerTag)) return;
+
+        GameObject player = GameObject.FindGameObjectWithTag(playerTag);
+        if (player == null) return;
+
+        Collider[] playerColliders = player.GetComponentsInChildren<Collider>();
+        foreach (Collider hammerCol in colliders)
+        {
+            if (hammerCol == null) continue;
+            foreach (Collider playerCol in playerColliders)
+            {
+                if (playerCol == null) continue;
+                Physics.IgnoreCollision(hammerCol, playerCol, true);
+            }
+        }
+    }
+
     void OnEnable()
     {
+        // RemoveListener avant AddListener pour éviter les doublons si OnEnable
+        // est appelé plusieurs fois (UnityEvent autorise les doublons).
+        grab.selectEntered.RemoveListener(OnGrabbed);
+        grab.selectExited.RemoveListener(OnReleased);
         grab.selectEntered.AddListener(OnGrabbed);
         grab.selectExited.AddListener(OnReleased);
 
         if (recallAction != null)
         {
             recallAction.action.Enable();
+            recallAction.action.performed -= OnRecallInput;
             recallAction.action.performed += OnRecallInput;
         }
     }
@@ -330,7 +368,10 @@ public class MarteauThor : MonoBehaviour
         rb.linearVelocity = Vector3.zero;
         rb.angularVelocity = Vector3.zero;
 
-        SetColliders(false);
+        // On garde les colliders actifs pour que le marteau écrase
+        // encore les ennemis sur le chemin du retour. Le joueur a déjà
+        // été exclu via Physics.IgnoreCollision dans Start().
+        SetColliders(true);
         SetGrabActive(false);
 
         PlaySound(returnSound);
@@ -472,7 +513,12 @@ public class MarteauThor : MonoBehaviour
     {
         if (state == HammerState.AwaitingCatch) return;
 
-        float impactSpeed = collision.relativeVelocity.magnitude;
+        // Utilise le max entre la vitesse Unity et la vitesse trackée à la main:
+        // pendant le retour (kinematic) relativeVelocity peut être 0.
+        float impactSpeed = Mathf.Max(
+            collision.relativeVelocity.magnitude,
+            currentVelocity.magnitude
+        );
 
         // Layer check (perf optimization)
         GameObject hitObject = collision.gameObject;
@@ -504,7 +550,9 @@ public class MarteauThor : MonoBehaviour
             ? currentVelocity.normalized
             : -contact.normal;
 
-        bool kill = alwaysInstantKill || impactSpeed >= minSpeedForKill || state == HammerState.Thrown;
+        // Pour tuer il faut atteindre la vitesse minimum (peu importe l'état).
+        // Le marteau lancé ou en retour tue plus facilement grâce à sa vitesse réelle.
+        bool kill = alwaysInstantKill || impactSpeed >= minSpeedForKill;
 
         Cible.HitInfo info = new(
             point: contact.point,
@@ -524,6 +572,9 @@ public class MarteauThor : MonoBehaviour
 
     private void PlayImpactEffects(float impactSpeed)
     {
+        // Évite de jouer le son chaque fois que le marteau effleure le sol.
+        if (impactSpeed < minSpeedForImpactSfx) return;
+
         PlaySound(impactSound);
         float hapticStrength = impactHapticAmplitude * Mathf.Clamp01(impactSpeed / 10f);
         SendHaptic(lastHand, hapticStrength, impactHapticDuration);

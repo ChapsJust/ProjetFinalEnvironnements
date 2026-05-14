@@ -5,12 +5,12 @@ using System;
 
 public class CollisionCallback : MonoBehaviour
 {
-    [SerializeField, Tooltip("Les callbacks à appeler lors d'une collision")]
+    // Note: Unity ne sÃ©rialise pas les Dictionary, donc pas de [SerializeField] ici.
     private Dictionary<GameObject, UnityEvent> callbacks = new();
 
     void OnCollisionEnter(Collision collision)
     {
-        Debug.Log($"Collision détectée avec {collision.gameObject.name} sur {gameObject.name}");
+        Debug.Log($"Collision dï¿½tectï¿½e avec {collision.gameObject.name} sur {gameObject.name}");
         GameObject obj = collision.gameObject;
 
         if (callbacks.ContainsKey(obj))
