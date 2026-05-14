@@ -1087,6 +1087,11 @@ MonoBehaviour:
       position: {x: -2, y: 2, z: 5}
       rotation: {x: 0, y: 0, z: 0, w: 0}
     tempsManche: 30
+  - cibles:
+    - prefab: {fileID: 4184230393094646414, guid: c4f565593845fce448d2b9dcf41a6d7d, type: 3}
+      position: {x: 0, y: 1.234, z: 7}
+      rotation: {x: 0, y: 0, z: 0, w: 0}
+    tempsManche: 30
   joueur: {fileID: 1350056040}
 --- !u!4 &1248454210
 Transform:
