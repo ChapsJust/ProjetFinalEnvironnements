@@ -70,4 +70,4 @@ Le projet est un jeu VR de type **action/survival par vagues**: le joueur doit e
 
 ---
 
-Depot public remis via GitHub, avec README incluant les noms et DA de l'equipe.
+Depot public - Aide Chat GPT
