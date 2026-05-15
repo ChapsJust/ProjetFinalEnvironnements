@@ -6,32 +6,18 @@ using UnityEngine.XR.Interaction.Toolkit.Interactables;
 using UnityEngine.XR.Interaction.Toolkit.Interactors;
 
 /// <summary>
-/// Mjolnir-style hammer pour XR Interaction Toolkit 3.x
-///
-/// FONCTIONNALITÉS
-/// ───────────────
-/// • Lancer avec spin et boost de vélocité
-/// • Retour automatique après délai ou rappel manuel (bouton)
-/// • Vol kinematic frame-by-frame (impossible de bypasser la main)
-/// • Orientation progressive du manche vers la main
-/// • Combat : kill instantané ou knockback selon vitesse d'impact
-/// • Tracking de vélocité indépendant de XRI pour des dégâts précis
-/// • Trail visuel auto-généré
-/// • Haptiques, audio, gestion d'urgence si hors limites
-///
-/// SETUP REQUIS
-/// ────────────
-/// • XRGrabInteractable : Movement Type = Velocity Tracking, Throw On Detach = ON,
-///   Smooth Position/Rotation = OFF
-/// • Ennemis : implémenter IDamageable (voir EnemyHammerTarget.cs)
+/// MarteauThor — Script de contrôle du marteau de Thor avec lancer, retour automatique, et gestion des impacts en combat.
+/// - Lancer : boost de vitesse à la release, spin visuel, et son de lancer.
+/// - Retour : après un délai ou sur input, le marteau revient à la main en
+/// (Aide avec Chat GPT)
 /// </summary>
 [RequireComponent(typeof(XRGrabInteractable))]
 [RequireComponent(typeof(Rigidbody))]
 public class MarteauThor : MonoBehaviour
 {
-    // ════════════════════════════════════════════════════════════════════════
+    // 
     #region States
-    // ════════════════════════════════════════════════════════════════════════
+    //
 
     public enum HammerState
     {
@@ -43,11 +29,11 @@ public class MarteauThor : MonoBehaviour
 
     #endregion
 
-    // ════════════════════════════════════════════════════════════════════════
+    //
     #region Inspector — Throw
-    // ════════════════════════════════════════════════════════════════════════
+    // 
 
-    [Header("═══ LANCER ═══")]
+    [Header(" LANCER ")]
     [Tooltip("Multiplicateur appliqué à la vélocité XRI au release")]
     [SerializeField] private float throwSpeedMultiplier = 2f;
 
@@ -65,18 +51,18 @@ public class MarteauThor : MonoBehaviour
 
     #endregion
 
-    // ════════════════════════════════════════════════════════════════════════
+    // 
     #region Inspector — Return
-    // ════════════════════════════════════════════════════════════════════════
+    // 
 
-    [Header("═══ RETOUR AUTOMATIQUE ═══")]
+    [Header(" RETOUR AUTOMATIQUE ")]
     [Tooltip("Secondes avant retour automatique (0 = désactivé)")]
     [SerializeField] private float autoReturnDelay = 3f;
 
     [Tooltip("Distance hors scène déclenchant un reset d'urgence (m)")]
     [SerializeField] private float emergencyResetDistance = 50f;
 
-    [Header("═══ VOL DE RETOUR ═══")]
+    [Header(" VOL DE RETOUR ")]
     [Tooltip("Vitesse de déplacement du marteau pendant le retour (m/s)")]
     [SerializeField] private float returnSpeed = 12f;
 
@@ -86,7 +72,7 @@ public class MarteauThor : MonoBehaviour
     [Tooltip("Distance à laquelle le marteau passe en mode AwaitingCatch (m)")]
     [SerializeField] private float catchDistance = 0.35f;
 
-    [Header("═══ ORIENTATION RETOUR ═══")]
+    [Header(" ORIENTATION RETOUR ")]
     [Tooltip("Axe local du manche pointant vers la main (Forward = Z+)")]
     [SerializeField] private Vector3 handleLocalAxis = Vector3.forward;
 
@@ -99,17 +85,17 @@ public class MarteauThor : MonoBehaviour
     [Tooltip("Distance à laquelle le spin commence à s'estomper (m)")]
     [SerializeField] private float spinFadeDistance = 2f;
 
-    [Header("═══ ATTENTE DE RATTRAPAGE ═══")]
+    [Header(" ATTENTE DE RATTRAPAGE ")]
     [Tooltip("Secondes pendant lesquelles le marteau flotte avant de retomber")]
     [SerializeField] private float floatingDuration = 2.5f;
 
     #endregion
 
-    // ════════════════════════════════════════════════════════════════════════
+    // 
     #region Inspector — Combat
-    // ════════════════════════════════════════════════════════════════════════
+    // 
 
-    [Header("═══ COMBAT ═══")]
+    [Header(" COMBAT ")]
     [Tooltip("Force de knockback de base (multipliée par la vitesse d'impact)")]
     [SerializeField] private float baseKnockbackForce = 5f;
 
@@ -124,14 +110,14 @@ public class MarteauThor : MonoBehaviour
 
     #endregion
 
-    // ════════════════════════════════════════════════════════════════════════
+    // 
     #region Inspector — Input & Feedback
-    // ════════════════════════════════════════════════════════════════════════
+    // 
 
-    [Header("═══ RAPPEL MANUEL ═══")]
+    [Header(" RAPPEL MANUEL ")]
     [SerializeField] private InputActionReference recallAction;
 
-    [Header("═══ HAPTIQUES ═══")]
+    [Header(" HAPTIQUES ")]
     [SerializeField] private float grabHapticAmplitude = 1f;
     [SerializeField] private float grabHapticDuration = 0.1f;
     [SerializeField] private float returnHapticAmplitude = 0.6f;
@@ -139,14 +125,14 @@ public class MarteauThor : MonoBehaviour
     [SerializeField] private float impactHapticAmplitude = 0.8f;
     [SerializeField] private float impactHapticDuration = 0.2f;
 
-    [Header("═══ AUDIO ═══")]
+    [Header(" AUDIO ")]
     [SerializeField] private AudioSource audioSource;
     [SerializeField] private AudioClip throwSound;
     [SerializeField] private AudioClip impactSound;
     [SerializeField] private AudioClip returnSound;
     [SerializeField] private AudioClip killSound;
 
-    [Header("═══ TRAIL VISUEL ═══")]
+    [Header(" TRAIL VISUEL ")]
     [SerializeField] private bool enableTrail = true;
     [SerializeField] private Color trailStartColor = new(0.45f, 0.75f, 1f, 1f);
     [SerializeField] private Color trailEndColor = new(0.1f, 0.3f, 1f, 0f);
@@ -155,9 +141,9 @@ public class MarteauThor : MonoBehaviour
 
     #endregion
 
-    // ════════════════════════════════════════════════════════════════════════
+    // 
     #region Private State
-    // ════════════════════════════════════════════════════════════════════════
+    // 
 
     private XRGrabInteractable grab;
     private Rigidbody rb;
@@ -179,9 +165,9 @@ public class MarteauThor : MonoBehaviour
 
     #endregion
 
-    // ════════════════════════════════════════════════════════════════════════
+    // 
     #region Unity Lifecycle
-    // ════════════════════════════════════════════════════════════════════════
+    // 
 
     void Awake()
     {
@@ -196,12 +182,13 @@ public class MarteauThor : MonoBehaviour
 
     void Start()
     {
-        // Empêche le joueur de se tenir / sauter sur le marteau.
-        // Les colliders du marteau ignorent ceux du joueur, mais peuvent encore
-        // toucher les ennemis et être saisis par la main XR.
+        // Ignore les collisions entre le marteau et le joueur pour éviter que le marteau ne soit stoppé ou dévié par le corps du joueur, surtout pendant le retour.
         IgnorePlayerCollisions();
     }
 
+    /// <summary>
+    /// Configure Physics.IgnoreCollision entre tous les colliders du marteau et du joueur.
+    /// </summary>
     private void IgnorePlayerCollisions()
     {
         if (string.IsNullOrEmpty(playerTag)) return;
@@ -223,8 +210,6 @@ public class MarteauThor : MonoBehaviour
 
     void OnEnable()
     {
-        // RemoveListener avant AddListener pour éviter les doublons si OnEnable
-        // est appelé plusieurs fois (UnityEvent autorise les doublons).
         grab.selectEntered.RemoveListener(OnGrabbed);
         grab.selectExited.RemoveListener(OnReleased);
         grab.selectEntered.AddListener(OnGrabbed);
@@ -249,13 +234,12 @@ public class MarteauThor : MonoBehaviour
 
     void Update()
     {
-        // Process recall input
         if (recallRequested)
         {
             recallRequested = false;
             if (state == HammerState.Thrown) StartReturn();
         }
-
+        // State machine principale
         switch (state)
         {
             case HammerState.Thrown:
@@ -278,9 +262,9 @@ public class MarteauThor : MonoBehaviour
 
     #endregion
 
-    // ════════════════════════════════════════════════════════════════════════
+    // 
     #region Grab Events
-    // ════════════════════════════════════════════════════════════════════════
+    // 
 
     private void OnGrabbed(SelectEnterEventArgs args)
     {
@@ -309,6 +293,7 @@ public class MarteauThor : MonoBehaviour
         StartCoroutine(BoostThrowVelocity());
     }
 
+    // Applique le boost de vitesse et le spin après le release. Doit être différé de quelques frames pour que XRI applique d'abord sa vélocité.
     private IEnumerator BoostThrowVelocity()
     {
         // XRI 3.x applies throw velocity in deferred FixedUpdates
@@ -327,15 +312,15 @@ public class MarteauThor : MonoBehaviour
 
     #endregion
 
-    // ════════════════════════════════════════════════════════════════════════
+    //
     #region Thrown State
-    // ════════════════════════════════════════════════════════════════════════
+    // 
 
+    // Pendant que le marteau est en vol libre après le lancer, on vérifie s'il sort trop loin (reset d'urgence) et on déclenche le retour automatique après un délai.
     private void UpdateThrown()
     {
         thrownTimer += Time.deltaTime;
 
-        // Emergency reset if hammer goes too far
         if (lastHand != null &&
             Vector3.Distance(transform.position, lastHand.transform.position) > emergencyResetDistance)
         {
@@ -351,9 +336,9 @@ public class MarteauThor : MonoBehaviour
 
     #endregion
 
-    // ════════════════════════════════════════════════════════════════════════
+    // 
     #region Return State
-    // ════════════════════════════════════════════════════════════════════════
+    // 
 
     private void OnRecallInput(InputAction.CallbackContext ctx) => recallRequested = true;
 
@@ -368,9 +353,7 @@ public class MarteauThor : MonoBehaviour
         rb.linearVelocity = Vector3.zero;
         rb.angularVelocity = Vector3.zero;
 
-        // On garde les colliders actifs pour que le marteau écrase
-        // encore les ennemis sur le chemin du retour. Le joueur a déjà
-        // été exclu via Physics.IgnoreCollision dans Start().
+        // Pendant le retour, on désactive les collisions physiques et la possibilité de saisir pour éviter les interférences avec le mouvement contrôlé par script.
         SetColliders(true);
         SetGrabActive(false);
 
@@ -390,19 +373,16 @@ public class MarteauThor : MonoBehaviour
             return;
         }
 
-        // Smooth acceleration
         currentReturnSpeed = Mathf.Lerp(
             currentReturnSpeed, returnSpeed,
             Time.deltaTime / Mathf.Max(returnStartSmoothing, 0.001f)
         );
 
-        // Frame-clamped step → impossible to overshoot
         float step = Mathf.Min(currentReturnSpeed * Time.deltaTime,
                                distance - catchDistance * 0.5f);
         Vector3 direction = (target - transform.position).normalized;
         transform.position += direction * step;
 
-        // Align handle toward hand
         if (direction != Vector3.zero)
         {
             Quaternion targetRot = Quaternion.FromToRotation(
@@ -416,7 +396,6 @@ public class MarteauThor : MonoBehaviour
             );
         }
 
-        // Mjolnir spin that fades on approach
         float spinFactor = Mathf.Clamp01(distance / Mathf.Max(spinFadeDistance, 0.01f));
         if (spinFactor > 0.01f)
             transform.Rotate(
@@ -431,10 +410,8 @@ public class MarteauThor : MonoBehaviour
         state = HammerState.AwaitingCatch;
         floatingTimer = 0f;
 
-        // ⚠ CRITICAL: exit kinematic BEFORE re-enabling grab
-        // XRI needs a dynamic rigidbody to initialize its velocity tracker properly
         rb.isKinematic = false;
-        rb.useGravity = false;          // No gravity while floating
+        rb.useGravity = false;
         rb.linearVelocity = Vector3.zero;
         rb.angularVelocity = Vector3.zero;
 
@@ -450,7 +427,6 @@ public class MarteauThor : MonoBehaviour
     {
         floatingTimer += Time.deltaTime;
 
-        // ⚠ CRITICAL: stop fighting XRI once the player grabbed
         if (grab.isSelected) return;
 
         if (lastHand?.transform != null)
@@ -496,47 +472,41 @@ public class MarteauThor : MonoBehaviour
 
     #endregion
 
-    // ════════════════════════════════════════════════════════════════════════
+    //
     #region Combat
-    // ════════════════════════════════════════════════════════════════════════
+    //
 
+    // Pour le combat, on track la vélocité à la main car celle de XRI n'est pas fiable en vol. On utilise cette vélocité pour calculer les dégâts et les effets d'impact.
     private void TrackVelocity()
     {
-        // Manual velocity tracking — works in all states (Held, Thrown, etc.)
-        // because rb.linearVelocity is unreliable when grabbed by XRI
         if (Time.deltaTime > 0f)
             currentVelocity = (transform.position - previousPosition) / Time.deltaTime;
         previousPosition = transform.position;
     }
 
+    // Lorsqu'on entre en collision, on vérifie si c'est un ennemi, on applique les dégâts et les knockback en fonction de la vélocité d'impact, et on joue les effets correspondants.
     void OnCollisionEnter(Collision collision)
     {
         if (state == HammerState.AwaitingCatch) return;
 
-        // Utilise le max entre la vitesse Unity et la vitesse trackée à la main:
-        // pendant le retour (kinematic) relativeVelocity peut être 0.
         float impactSpeed = Mathf.Max(
             collision.relativeVelocity.magnitude,
             currentVelocity.magnitude
         );
 
-        // Layer check (perf optimization)
         GameObject hitObject = collision.gameObject;
         if ((enemyLayers.value & (1 << hitObject.layer)) == 0)
         {
-            // Not an enemy — just play impact effects
             PlayImpactEffects(impactSpeed);
             return;
         }
 
-        // Damage cooldown per object (prevents multi-hit on same enemy)
         int instanceId = hitObject.GetInstanceID();
         if (recentHits.TryGetValue(instanceId, out float lastHit) &&
             Time.time - lastHit < hitCooldown)
             return;
         recentHits[instanceId] = Time.time;
 
-        // Find Cible on the hit object or its parents
         Cible target = hitObject.GetComponentInParent<Cible>();
         if (target == null)
         {
@@ -544,14 +514,12 @@ public class MarteauThor : MonoBehaviour
             return;
         }
 
-        // Build hit info and deal damage
         ContactPoint contact = collision.GetContact(0);
         Vector3 impactDir = currentVelocity.sqrMagnitude > 0.01f
             ? currentVelocity.normalized
             : -contact.normal;
 
-        // Pour tuer il faut atteindre la vitesse minimum (peu importe l'état).
-        // Le marteau lancé ou en retour tue plus facilement grâce à sa vitesse réelle.
+        // Détermine si l'impact est suffisamment fort pour être un "kill". Si alwaysInstantKill est true, tous les impacts sont des kills
         bool kill = alwaysInstantKill || impactSpeed >= minSpeedForKill;
 
         Cible.HitInfo info = new(
@@ -572,7 +540,6 @@ public class MarteauThor : MonoBehaviour
 
     private void PlayImpactEffects(float impactSpeed)
     {
-        // Évite de jouer le son chaque fois que le marteau effleure le sol.
         if (impactSpeed < minSpeedForImpactSfx) return;
 
         PlaySound(impactSound);
@@ -580,9 +547,12 @@ public class MarteauThor : MonoBehaviour
         SendHaptic(lastHand, hapticStrength, impactHapticDuration);
     }
 
+    /// <summary>
+    /// Nettoie périodiquement les entrées de recentHits pour éviter que la liste ne grossisse indéfiniment. Les entrées sont supprimées si elles sont plus anciennes que 2 fois le hitCooldown.
+    /// Aide chat gpt
+    /// </summary>
     private void CleanupHitCooldowns()
     {
-        // Periodically remove old entries to prevent dictionary growth
         if (recentHits.Count == 0 || Time.frameCount % 120 != 0) return;
 
         var toRemove = new System.Collections.Generic.List<int>();
@@ -595,9 +565,9 @@ public class MarteauThor : MonoBehaviour
 
     #endregion
 
-    // ════════════════════════════════════════════════════════════════════════
+    // 
     #region Helpers
-    // ════════════════════════════════════════════════════════════════════════
+    // 
 
     private void SetGrabActive(bool active) => grab.enabled = active;
 
@@ -626,6 +596,8 @@ public class MarteauThor : MonoBehaviour
             ctrl.SendHapticImpulse(amplitude, duration);
     }
 
+    // Configure le TrailRenderer pour créer une traînée visuelle derrière le marteau pendant le vol. Utilise un shader compatible avec les pipelines de rendu courants.
+    // (AIDE CHAT GPT)
     private void BuildTrail()
     {
         if (!enableTrail) return;
